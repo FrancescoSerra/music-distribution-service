@@ -5,8 +5,10 @@ import eu.timepit.refined.types.string.NonEmptyString
 import eu.timepit.refined.types.numeric._
 import cats.data.NonEmptyList
 import monocle.Iso
-import java.time.{Duration, LocalDate, Instant}
+
+import java.time._
 import java.util.UUID
+import scala.concurrent.duration.FiniteDuration
 
 object model {
 
@@ -20,7 +22,7 @@ object model {
     @newtype case class SongTitle(value: NonEmptyString)
     @newtype case class ArtistName(value: NonEmptyString)
     @newtype case class RecordLabelName(value: NonEmptyString)
-    @newtype case class StreamDuration(value: Duration)
+    @newtype case class StreamDuration(value: FiniteDuration)
     @newtype case class PaymentAmount(value: PosBigDecimal)
     @newtype case class Timestamp(value: Instant)
     @newtype case class ProposedReleaseDate(value: LocalDate)

@@ -43,17 +43,21 @@ trait MusicDistributionService[F[_]] {
   // track streamed songs
   def recordStream(event: SongStreamed): F[StreamId]
   
-  // Get stream reports for artist
+  // get stream reports for artist
   def getStreamReport(artistId: ArtistId): F[StreamReport]
   
-  // File for payment
+  // file for payment
   def fileForPayment(artistId: ArtistId): F[PaymentFiled]
   
-  // Withdraw release from distribution
+  // withdraw release from distribution
   def withdrawRelease(releaseId: ReleaseId): F[ReleaseWithdrawn]
 }
 
-class MusicDistributionProgram[F[_]: MonadThrow: Parallel](
+/*
+* This class implements the core business logic. Each of its dependencies provides the set of low level behaviours that can be composed
+* to support the user workflows, as per business requirements.
+* */
+case class MusicDistributionProgram[F[_]: MonadThrow: Parallel](
   artistRepository: ArtistRepository[F],
   songRepository: SongRepository[F],
   releaseRepository: ReleaseRepository[F],
@@ -70,7 +74,8 @@ class MusicDistributionProgram[F[_]: MonadThrow: Parallel](
   * assumption: an artist/record-label client can invoke the functions in this service only after it's been authenticated and authorised by some
   * front-end layer
   *
-  * MONETIZATION_THRESHOLD_SECONDS and RATE_PER_STREAM could be passed in as parameters either per instance or as argument to the relevant functions
+  * MONETIZATION_THRESHOLD_SECONDS and RATE_PER_STREAM could be passed in as parameters either per instance or as argument to the relevant functions - hence
+  * they've been typed as refined types
   * */
 
   private val MONETIZATION_THRESHOLD_SECONDS: PosInt = 30
@@ -204,12 +209,11 @@ class MusicDistributionProgram[F[_]: MonadThrow: Parallel](
   override def searchSongs(query: TitleQuery, threshold: NonNegInt): F[List[Song]] =
     for {
       allSongs <- songRepository.findAllReleasedSongs
-      matchedSongs = searchByLevenshteinDistance(allSongs, query.value)
+      matchedSongs = searchByLevenshteinDistance(allSongs, query.value, threshold)
     } yield matchedSongs
 
-  private def searchByLevenshteinDistance(songs: List[Song], query: String): List[Song] = {
+  private def searchByLevenshteinDistance(songs: List[Song], query: String, threshold: NonNegInt): List[Song] = {
     val levenshtein = LevenshteinDistance.getDefaultInstance
-    val threshold = Math.min(3, Math.max(1, query.length / 4))
 
     songs.filter { song =>
       val distance = levenshtein.apply(query.toLowerCase, song.title.value.value.toLowerCase)
@@ -233,7 +237,7 @@ class MusicDistributionProgram[F[_]: MonadThrow: Parallel](
         songId = event.songId,
         duration = event.duration,
         timestamp = now,
-        monetized = Monetized._Bool.reverseGet(event.duration.value.getSeconds >= MONETIZATION_THRESHOLD_SECONDS) // only streams longer than 30s are monetized
+        monetized = Monetized._Bool.reverseGet(event.duration.value.toSeconds >= MONETIZATION_THRESHOLD_SECONDS) // only streams longer than 30s are monetized
       )
       _ <- streamRepository.save(audioStream)
     } yield streamId
